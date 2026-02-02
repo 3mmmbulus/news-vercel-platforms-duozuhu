@@ -1,8 +1,40 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { SubdomainForm } from './subdomain-form';
+import { SiteHome } from '@/components/site-home';
+import {
+  getCategoriesBySiteId,
+  getLatestItemsBySiteId,
+  getSiteByHost
+} from '@/lib/tenant.server';
 import { rootDomain } from '@/lib/utils';
 
 export default async function HomePage() {
+  const host = headers().get('host');
+  const rootHost = rootDomain.split(':')[0].toLowerCase();
+  const incomingHost = host?.split(':')[0].toLowerCase();
+
+  if (incomingHost && incomingHost !== rootHost) {
+    const tenant = await getSiteByHost(host);
+
+    if (tenant?.site && tenant.host) {
+      const [categories, items] = await Promise.all([
+        getCategoriesBySiteId(tenant.site.id),
+        getLatestItemsBySiteId(tenant.site.id, 12)
+      ]);
+
+      return (
+        <SiteHome
+          host={tenant.host}
+          site={tenant.site}
+          categories={categories}
+          items={items}
+          showRootLink={false}
+        />
+      );
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4 relative">
       <div className="absolute top-4 right-4">
