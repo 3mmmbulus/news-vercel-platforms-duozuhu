@@ -1,20 +1,54 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { SiteHome } from '@/components/site-home';
 import {
   getCategoriesBySiteId,
   getLatestItemsBySiteId,
-  getSiteByHost
+  getSiteByHost,
+  resolveHostFromHeaders
 } from '@/lib/tenant.server';
 import { rootDomain } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const hostname = resolveHostFromHeaders(requestHeaders);
+  const host = hostname ? hostname : null;
+
+  if (!hostname) {
+    return {
+      title: rootDomain
+    };
+  }
+
+  const tenant = await getSiteByHost(host);
+
+  if (!tenant?.site) {
+    return {
+      title: rootDomain
+    };
+  }
+
+  const title =
+    tenant.site.meta_title || tenant.site.site_name || tenant.host || hostname;
+  const description = tenant.site.meta_description || undefined;
+  const keywords = tenant.site.meta_keywords || undefined;
+
+  return {
+    title,
+    description,
+    keywords
+  };
+}
+
 export default async function HomePage() {
   const requestHeaders = await headers();
-  const host =
-    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+  const host = resolveHostFromHeaders(requestHeaders);
   const rootHost = rootDomain.split(':')[0].toLowerCase();
-  const incomingHost = host?.split(':')[0].toLowerCase();
+  const incomingHost = host?.toLowerCase();
 
   if (incomingHost && incomingHost !== rootHost) {
     const tenant = await getSiteByHost(host);

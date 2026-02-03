@@ -5,7 +5,8 @@ import { SiteHome } from '@/components/site-home';
 import {
   getCategoriesBySiteId,
   getLatestItemsBySiteId,
-  getSiteByHost
+  getSiteByHost,
+  resolveHostFromHeaders
 } from '@/lib/tenant.server';
 import { rootDomain } from '@/lib/utils';
 
@@ -16,8 +17,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   await params;
   const requestHeaders = await headers();
-  const host =
-    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+  const host = resolveHostFromHeaders(requestHeaders);
   const tenant = await getSiteByHost(host);
 
   if (!tenant?.site) {
@@ -40,8 +40,7 @@ export default async function SubdomainPage({
 }) {
   await params;
   const requestHeaders = await headers();
-  const host =
-    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+  const host = resolveHostFromHeaders(requestHeaders);
   const tenant = await getSiteByHost(host);
 
   if (!tenant?.site || !tenant.host) {

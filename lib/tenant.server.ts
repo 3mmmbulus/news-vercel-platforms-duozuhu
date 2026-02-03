@@ -7,6 +7,10 @@ export type SiteRecord = RecordModel & {
   name?: string;
   title?: string;
   description?: string;
+  site_name?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string;
 };
 
 export type CategoryRecord = RecordModel & {
@@ -66,6 +70,38 @@ function setCachedHost(host: string, value: SiteByHostResult) {
   });
 }
 
+export function resolveHostFromHeaders(requestHeaders: Headers | null) {
+  if (!requestHeaders) {
+    return null;
+  }
+
+  const rawHost =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+
+  if (!rawHost) {
+    return null;
+  }
+
+  const firstHost = rawHost.split(',')[0]?.trim();
+
+  if (!firstHost) {
+    return null;
+  }
+
+  let hostOnly = firstHost;
+
+  if (hostOnly.startsWith('[')) {
+    const closingIndex = hostOnly.indexOf(']');
+    if (closingIndex !== -1) {
+      hostOnly = hostOnly.slice(0, closingIndex + 1);
+    }
+  } else {
+    hostOnly = hostOnly.split(':')[0];
+  }
+
+  return hostOnly.trim().toLowerCase();
+}
+
 function normalizeHost(host: string | null) {
   if (!host) {
     return null;
@@ -99,10 +135,14 @@ export async function getSiteByHost(host: string | null) {
   }
 
   try {
+    const statusFilter =
+      process.env.NODE_ENV === 'production'
+        ? ' && (status = "active" || status = "verified")'
+        : '';
     const domain = await pb
       .collection('domains')
       .getFirstListItem<DomainRecord>(
-        `hostname = ${JSON.stringify(normalizedHost)}`,
+        `hostname = ${JSON.stringify(normalizedHost)}${statusFilter}`,
         { expand: 'site' }
       );
 
@@ -131,7 +171,6 @@ export async function getSiteByHost(host: string | null) {
     return result;
   } catch (error) {
     console.warn('[tenant] host not matched', { host: normalizedHost });
-    setCachedHost(normalizedHost, null);
     return null;
   }
 }

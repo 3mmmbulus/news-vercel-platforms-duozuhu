@@ -118,6 +118,22 @@ function ensureRequiredFields(data, fields, context) {
   return result;
 }
 
+function pickSelectValue(fields, name, preferred) {
+  const field = fields.find((item) => item.name === name);
+  if (!field || field.type !== 'select') {
+    return undefined;
+  }
+
+  if (preferred && Array.isArray(field.values)) {
+    const found = field.values.find((value) => value === preferred);
+    if (found) {
+      return found;
+    }
+  }
+
+  return Array.isArray(field.values) ? field.values[0] : undefined;
+}
+
 async function getCollectionFields(collectionName) {
   try {
     const collection = await pb.collections.getOne(collectionName);
@@ -185,96 +201,170 @@ async function main() {
 
   console.info('[seed] Owner ready', { ownerId: owner.id });
 
-  const siteBaseData = {
-    owner: owner.id,
-    site_slug: '1dun',
-    name: '1dun',
-    title: '1dun',
-    description: 'Seeded site for 1dun'
-  };
+  const domainStatus = pickSelectValue(domainsFields, 'status', 'active');
 
-  const siteData = ensureRequiredFields(
-    pickKnownFields(siteBaseData, sitesFields),
-    sitesFields,
-    { ownerId: owner.id }
-  );
+  const seedConfigs = [
+    {
+      hostname: '1dun.co',
+      siteSlug: '1dun-co',
+      siteName: '1dun.co 站点',
+      metaTitle: '1dun.co 标题',
+      metaDescription: '这是 1dun.co 的描述内容，用于测试站点元信息。',
+      metaKeywords: '1dun.co,测试,关键词',
+      categoryTitle: '1dun.co 分类',
+      categorySlug: '1dun-co-category',
+      itemTitle: '1dun.co 文章',
+      itemSlug: '1dun-co-item'
+    },
+    {
+      hostname: 'www.1dun.co',
+      siteSlug: 'www-1dun-co',
+      siteName: 'www.1dun.co 站点',
+      metaTitle: 'www.1dun.co 标题',
+      metaDescription: '这是 www.1dun.co 的描述内容，用于测试站点元信息。',
+      metaKeywords: 'www.1dun.co,测试,关键词',
+      categoryTitle: 'www.1dun.co 分类',
+      categorySlug: 'www-1dun-co-category',
+      itemTitle: 'www.1dun.co 文章',
+      itemSlug: 'www-1dun-co-item'
+    },
+    {
+      hostname: 'download.1dun.co',
+      siteSlug: 'download-1dun-co',
+      siteName: 'download.1dun.co 下载站点',
+      metaTitle: 'download.1dun.co 下载中心',
+      metaDescription: 'download.1dun.co 提供最新客户端与工具下载。',
+      metaKeywords: 'download.1dun.co,下载,客户端,工具',
+      categoryTitle: 'download.1dun.co 下载分类',
+      categorySlug: 'download-1dun-co-category',
+      itemTitle: 'download.1dun.co 下载条目',
+      itemSlug: 'download-1dun-co-item'
+    },
+    {
+      hostname: '1dun.net',
+      siteSlug: '1dun-net',
+      siteName: '1dun.net 站点',
+      metaTitle: '1dun.net 标题',
+      metaDescription: '这是 1dun.net 的描述内容，用于测试站点元信息。',
+      metaKeywords: '1dun.net,测试,关键词',
+      categoryTitle: '1dun.net 分类',
+      categorySlug: '1dun-net-category',
+      itemTitle: '1dun.net 文章',
+      itemSlug: '1dun-net-item'
+    },
+    {
+      hostname: 'www.1dun.net',
+      siteSlug: 'www-1dun-net',
+      siteName: 'www.1dun.net 站点',
+      metaTitle: 'www.1dun.net 标题',
+      metaDescription: '这是 www.1dun.net 的描述内容，用于测试站点元信息。',
+      metaKeywords: 'www.1dun.net,测试,关键词',
+      categoryTitle: 'www.1dun.net 分类',
+      categorySlug: 'www-1dun-net-category',
+      itemTitle: 'www.1dun.net 文章',
+      itemSlug: 'www-1dun-net-item'
+    }
+  ];
 
-  const site = await upsertRecord({
-    collection: 'sites',
-    filter: `site_slug = ${JSON.stringify('1dun')}`,
-    createData: siteData,
-    updateData: pickKnownFields(siteBaseData, sitesFields)
-  });
+  for (const seed of seedConfigs) {
+    const siteBaseData = {
+      owner: owner.id,
+      site_slug: seed.siteSlug,
+      site_name: seed.siteName,
+      name: seed.siteName,
+      title: seed.siteName,
+      description: seed.metaDescription,
+      meta_title: seed.metaTitle,
+      meta_description: seed.metaDescription,
+      meta_keywords: seed.metaKeywords
+    };
 
-  console.info('[seed] Site ready', { siteId: site.id });
+    const siteData = ensureRequiredFields(
+      pickKnownFields(siteBaseData, sitesFields),
+      sitesFields,
+      { ownerId: owner.id }
+    );
 
-  const domainBase = (hostname) => ({
-    hostname,
-    site: site.id
-  });
+    const site = await upsertRecord({
+      collection: 'sites',
+      filter: `site_slug = ${JSON.stringify(seed.siteSlug)}`,
+      createData: siteData,
+      updateData: pickKnownFields(siteBaseData, sitesFields)
+    });
 
-  for (const hostname of ['1dun.co', '1dun.net']) {
+    console.info('[seed] Site ready', { siteId: site.id, hostname: seed.hostname });
+
+    const domainBase = {
+      hostname: seed.hostname,
+      site: site.id,
+      status: domainStatus
+    };
+
     const domainData = ensureRequiredFields(
-      pickKnownFields(domainBase(hostname), domainsFields),
+      pickKnownFields(domainBase, domainsFields),
       domainsFields,
       { siteId: site.id }
     );
 
     await upsertRecord({
       collection: 'domains',
-      filter: `hostname = ${JSON.stringify(hostname)}`,
+      filter: `hostname = ${JSON.stringify(seed.hostname)}`,
       createData: domainData,
-      updateData: pickKnownFields(domainBase(hostname), domainsFields)
+      updateData: pickKnownFields(domainBase, domainsFields)
     });
 
-    console.info('[seed] Domain ready', { hostname });
+    console.info('[seed] Domain ready', { hostname: seed.hostname });
+
+    const categoryBase = {
+      site: site.id,
+      title: seed.categoryTitle,
+      slug: seed.categorySlug,
+      description: `${seed.categoryTitle} 的描述`
+    };
+
+    const categoryData = ensureRequiredFields(
+      pickKnownFields(categoryBase, categoriesFields),
+      categoriesFields,
+      { siteId: site.id }
+    );
+
+    const category = await upsertRecord({
+      collection: 'categories',
+      filter: `site = ${JSON.stringify(site.id)} && slug = ${JSON.stringify(
+        seed.categorySlug
+      )}`,
+      createData: categoryData,
+      updateData: pickKnownFields(categoryBase, categoriesFields)
+    });
+
+    console.info('[seed] Category ready', { categoryId: category.id });
+
+    const itemBase = {
+      site: site.id,
+      category: category.id,
+      title: seed.itemTitle,
+      slug: seed.itemSlug,
+      excerpt: `${seed.itemTitle} 的摘要内容`,
+      content: `这是一条用于 ${seed.hostname} 的示例内容，方便区分不同域名。`
+    };
+
+    const itemData = ensureRequiredFields(
+      pickKnownFields(itemBase, itemsFields),
+      itemsFields,
+      { siteId: site.id, categoryId: category.id }
+    );
+
+    const item = await upsertRecord({
+      collection: 'items',
+      filter: `site = ${JSON.stringify(site.id)} && slug = ${JSON.stringify(
+        seed.itemSlug
+      )}`,
+      createData: itemData,
+      updateData: pickKnownFields(itemBase, itemsFields)
+    });
+
+    console.info('[seed] Item ready', { itemId: item.id });
   }
-
-  const categoryBase = {
-    site: site.id,
-    title: 'General',
-    slug: 'general',
-    description: 'Seeded category'
-  };
-
-  const categoryData = ensureRequiredFields(
-    pickKnownFields(categoryBase, categoriesFields),
-    categoriesFields,
-    { siteId: site.id }
-  );
-
-  const category = await upsertRecord({
-    collection: 'categories',
-    filter: `site = ${JSON.stringify(site.id)} && slug = ${JSON.stringify('general')}`,
-    createData: categoryData,
-    updateData: pickKnownFields(categoryBase, categoriesFields)
-  });
-
-  console.info('[seed] Category ready', { categoryId: category.id });
-
-  const itemBase = {
-    site: site.id,
-    category: category.id,
-    title: 'Welcome to 1dun',
-    slug: 'welcome',
-    excerpt: 'Seeded item for the 1dun site',
-    content: 'This is a seeded item created by scripts/seed-1dun.mjs.'
-  };
-
-  const itemData = ensureRequiredFields(
-    pickKnownFields(itemBase, itemsFields),
-    itemsFields,
-    { siteId: site.id, categoryId: category.id }
-  );
-
-  const item = await upsertRecord({
-    collection: 'items',
-    filter: `site = ${JSON.stringify(site.id)} && slug = ${JSON.stringify('welcome')}`,
-    createData: itemData,
-    updateData: pickKnownFields(itemBase, itemsFields)
-  });
-
-  console.info('[seed] Item ready', { itemId: item.id });
 }
 
 main()
