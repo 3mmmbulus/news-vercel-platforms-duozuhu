@@ -23,12 +23,48 @@ export type ItemRecord = RecordModel & {
 };
 
 type DomainRecord = RecordModel & {
-  host?: string;
+  hostname?: string;
   site: string;
   expand?: {
     site?: SiteRecord;
   };
 };
+
+type SiteByHostResult =
+  | {
+      host: string;
+      domain: DomainRecord;
+      site: SiteRecord;
+    }
+  | null;
+
+const HOST_CACHE_TTL_MS = 60_000;
+const hostCache = new Map<
+  string,
+  { expiresAt: number; value: SiteByHostResult }
+>();
+
+function getCachedHost(host: string): SiteByHostResult | undefined {
+  const cached = hostCache.get(host);
+
+  if (!cached) {
+    return undefined;
+  }
+
+  if (cached.expiresAt < Date.now()) {
+    hostCache.delete(host);
+    return undefined;
+  }
+
+  return cached.value;
+}
+
+function setCachedHost(host: string, value: SiteByHostResult) {
+  hostCache.set(host, {
+    value,
+    expiresAt: Date.now() + HOST_CACHE_TTL_MS
+  });
+}
 
 function normalizeHost(host: string | null) {
   if (!host) {
@@ -42,31 +78,60 @@ export async function getSiteByHost(host: string | null) {
   const normalizedHost = normalizeHost(host);
 
   if (!normalizedHost) {
+    console.warn('[tenant] missing host header');
     return null;
   }
 
-  const pb = getPocketBaseAdminClient();
+  const cached = getCachedHost(normalizedHost);
+
+  if (cached !== undefined) {
+    console.info('[tenant] cache hit', { host: normalizedHost });
+    return cached;
+  }
+
+  console.info('[tenant] cache miss', { host: normalizedHost });
+
+  const pb = await getPocketBaseAdminClient();
+
+  if (!pb) {
+    console.warn('[tenant] PB not configured', { host: normalizedHost });
+    return null;
+  }
 
   try {
     const domain = await pb
       .collection('domains')
       .getFirstListItem<DomainRecord>(
-        `host = ${JSON.stringify(normalizedHost)}`,
+        `hostname = ${JSON.stringify(normalizedHost)}`,
         { expand: 'site' }
       );
 
     const site = domain.expand?.site ?? null;
 
     if (!site) {
+      console.warn('[tenant] domain found but site missing', {
+        host: normalizedHost,
+        domainId: domain.id
+      });
       return null;
     }
 
-    return {
+    console.info('[tenant] resolved host', {
+      host: normalizedHost,
+      siteId: site.id
+    });
+
+    const result = {
       host: normalizedHost,
       domain,
       site
     };
+
+    setCachedHost(normalizedHost, result);
+    return result;
   } catch (error) {
+    console.warn('[tenant] host not matched', { host: normalizedHost });
+    setCachedHost(normalizedHost, null);
     return null;
   }
 }
@@ -76,13 +141,24 @@ export async function getCategoriesBySiteId(siteId: string) {
     return [] as CategoryRecord[];
   }
 
-  const pb = getPocketBaseAdminClient();
-  const categories = await pb.collection('categories').getFullList<CategoryRecord>({
-    sort: 'name',
-    filter: `site = ${JSON.stringify(siteId)}`
-  });
+  try {
+    const pb = await getPocketBaseAdminClient();
 
-  return categories;
+    if (!pb) {
+      return [] as CategoryRecord[];
+    }
+
+    const categories = await pb
+      .collection('categories')
+      .getFullList<CategoryRecord>({
+        sort: 'name',
+        filter: `site = ${JSON.stringify(siteId)}`
+      });
+
+    return categories;
+  } catch {
+    return [] as CategoryRecord[];
+  }
 }
 
 export async function getLatestItemsBySiteId(siteId: string, limit = 10) {
@@ -90,11 +166,20 @@ export async function getLatestItemsBySiteId(siteId: string, limit = 10) {
     return [] as ItemRecord[];
   }
 
-  const pb = getPocketBaseAdminClient();
-  const items = await pb.collection('items').getList<ItemRecord>(1, limit, {
-    sort: '-created',
-    filter: `site = ${JSON.stringify(siteId)}`
-  });
+  try {
+    const pb = await getPocketBaseAdminClient();
 
-  return items.items;
+    if (!pb) {
+      return [] as ItemRecord[];
+    }
+
+    const items = await pb.collection('items').getList<ItemRecord>(1, limit, {
+      sort: '-created',
+      filter: `site = ${JSON.stringify(siteId)}`
+    });
+
+    return items.items;
+  } catch {
+    return [] as ItemRecord[];
+  }
 }

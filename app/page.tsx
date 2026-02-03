@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { SubdomainForm } from './subdomain-form';
+import { notFound } from 'next/navigation';
 import { SiteHome } from '@/components/site-home';
 import {
   getCategoriesBySiteId,
@@ -10,7 +10,9 @@ import {
 import { rootDomain } from '@/lib/utils';
 
 export default async function HomePage() {
-  const host = headers().get('host');
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
   const rootHost = rootDomain.split(':')[0].toLowerCase();
   const incomingHost = host?.split(':')[0].toLowerCase();
 
@@ -33,10 +35,12 @@ export default async function HomePage() {
         />
       );
     }
+
+    notFound();
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4 relative">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-slate-50 to-white p-6 relative">
       <div className="absolute top-4 right-4">
         <Link
           href="/admin"
@@ -46,18 +50,33 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
+      <div className="w-full max-w-2xl space-y-6 text-center">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
+            Platform
+          </p>
           <h1 className="text-4xl font-bold tracking-tight text-gray-900">
             {rootDomain}
           </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Create your own subdomain with a custom emoji
+          <p className="text-lg text-gray-600">
+            平台入口页：根据访问域名自动加载对应站点内容。
           </p>
         </div>
-
-        <div className="mt-8 bg-white shadow-md rounded-lg p-6">
-          <SubdomainForm />
+        <div className="mx-auto flex flex-wrap justify-center gap-4">
+          <Link
+            href="/admin"
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            进入管理后台
+          </Link>
+          <a
+            href="https://hub.erel.cc"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-400"
+          >
+            前往 PocketBase
+          </a>
         </div>
       </div>
     </div>

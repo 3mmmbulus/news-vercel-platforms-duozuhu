@@ -1,6 +1,6 @@
 'use server';
 
-import { redis } from '@/lib/redis';
+import { getRedis } from '@/lib/redis';
 import { isValidIcon } from '@/lib/subdomains';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -10,6 +10,15 @@ export async function createSubdomainAction(
   prevState: any,
   formData: FormData
 ) {
+  const redis = getRedis();
+
+  if (!redis) {
+    return {
+      success: false,
+      error: 'Redis is not configured. Please set KV_REST_API_URL and KV_REST_API_TOKEN.'
+    };
+  }
+
   const subdomain = formData.get('subdomain') as string;
   const icon = formData.get('icon') as string;
 
@@ -62,6 +71,14 @@ export async function deleteSubdomainAction(
   prevState: any,
   formData: FormData
 ) {
+  const redis = getRedis();
+
+  if (!redis) {
+    return {
+      error: 'Redis is not configured. Please set KV_REST_API_URL and KV_REST_API_TOKEN.'
+    };
+  }
+
   const subdomain = formData.get('subdomain');
   await redis.del(`subdomain:${subdomain}`);
   revalidatePath('/admin');

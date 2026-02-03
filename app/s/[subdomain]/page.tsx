@@ -15,7 +15,9 @@ export async function generateMetadata({
   params: Promise<{ subdomain: string }>;
 }): Promise<Metadata> {
   await params;
-  const host = headers().get('host');
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
   const tenant = await getSiteByHost(host);
 
   if (!tenant?.site) {
@@ -37,7 +39,9 @@ export default async function SubdomainPage({
   params: Promise<{ subdomain: string }>;
 }) {
   await params;
-  const host = headers().get('host');
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
   const tenant = await getSiteByHost(host);
 
   if (!tenant?.site || !tenant.host) {

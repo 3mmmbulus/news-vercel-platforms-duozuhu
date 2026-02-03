@@ -1,4 +1,4 @@
-import { redis } from '@/lib/redis';
+import { getRedis } from '@/lib/redis';
 
 export function isValidIcon(str: string) {
   if (str.length > 10) {
@@ -33,6 +33,12 @@ type SubdomainData = {
 
 export async function getSubdomainData(subdomain: string) {
   const sanitizedSubdomain = subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const redis = getRedis();
+
+  if (!redis) {
+    return null;
+  }
+
   const data = await redis.get<SubdomainData>(
     `subdomain:${sanitizedSubdomain}`
   );
@@ -40,6 +46,12 @@ export async function getSubdomainData(subdomain: string) {
 }
 
 export async function getAllSubdomains() {
+  const redis = getRedis();
+
+  if (!redis) {
+    return [];
+  }
+
   const keys = await redis.keys('subdomain:*');
 
   if (!keys.length) {
